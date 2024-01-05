@@ -13,6 +13,7 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
 from django.http import Http404
+from blog.api.filters import PostFilterSet
 
 from rest_framework.exceptions import PermissionDenied
 
@@ -27,6 +28,8 @@ class UserDetail(generics.RetrieveAPIView):
     return super(UserDetail, self).get(*args, *kwargs)
 
 class PostViewSet(viewsets.ModelViewSet):
+    ordering_fields = ["published_at", "author", "title", "slug"]
+    filterset_class = PostFilterSet
     permission_classes = [AuthorModifyOrReadOnly | IsAdminUserForObject]
     queryset = Post.objects.all()
 
@@ -40,12 +43,18 @@ class PostViewSet(viewsets.ModelViewSet):
     @method_decorator(vary_on_cookie)
     @action(methods=["get"], detail=False, name="Posts by the logged in user")
     def mine(self, request):
-      if request.user.is_anonymous:
-          raise PermissionDenied("You must be logged in to see which Posts are yours")
-      posts = self.get_queryset().filter(author=request.user)
-      serializer = PostSerializer(posts, many=True, context={"request": request})
-      return Response(serializer.data)
+        if request.user.is_anonymous:
+            raise PermissionDenied("You must be logged in to see which Posts are yours")
+        posts = self.get_queryset().filter(author=request.user)
 
+        page = self.paginate_queryset(posts)
+
+        if page is not None:
+            serializer = PostSerializer(page, many=True, context={"request": request})
+            return self.get_paginated_response(serializer.data)
+
+        serializer = PostSerializer(posts, many=True, context={"request": request})
+        return Response(serializer.data)
     @method_decorator(cache_page(120))
     @method_decorator(vary_on_headers("Authorization", "Cookie"))
     def list(self, *args, **kwargs):
@@ -92,9 +101,17 @@ class TagViewSet(viewsets.ModelViewSet):
   @action(methods=["get"], detail=True, name="Posts with the Tag")
   def posts(self, request, pk=None):
     tag = self.get_object()
-    post_serializer = PostSerializer(tag.posts, many=True, context={"request": request})
+    page = self.paginate_queryset(tag.posts)
+    if page is not None:
+        post_serializer = PostSerializer(
+            page, many=True, context={"request": request}
+        )
+        return self.get_paginated_response(post_serializer.data)
+    post_serializer = PostSerializer(
+        tag.posts, many=True, context={"request": request}
+    )
     return Response(post_serializer.data)
-  
+    
   @method_decorator(cache_page(300))
   def list(self, *args, **kwargs):
       return super(TagViewSet, self).list(*args, **kwargs)
