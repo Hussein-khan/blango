@@ -17,7 +17,7 @@ import debug_toolbar
 from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
-from blog.views import index, post_detail, get_ip
+from blog.views import index, post_detail, get_ip, post_table
 import blango_auth.views
 from django_registration.backends.activation.views import RegistrationView
 from blango_auth.forms import BlangoRegistrationForm
@@ -34,6 +34,7 @@ urlpatterns = [
     path("accounts/register/", RegistrationView.as_view(form_class=BlangoRegistrationForm), name="django_registration_register",),
     path("accounts/", include("django_registration.backends.activation.urls")),
     path("api/v1/", include("blog.api.urls")),
+    path("post-table/", post_table, name="blog-post-table"),
 ]
 
 if settings.DEBUG:
